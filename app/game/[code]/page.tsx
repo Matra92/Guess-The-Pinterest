@@ -35,6 +35,7 @@ export default function GamePage() {
   const [revealOwner, setRevealOwner] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [roundTime, setRoundTime] = useState(10);
+  const [currentRoundNumber, setCurrentRoundNumber] = useState<number | null>(null);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [selectedGuessId, setSelectedGuessId] = useState<number | null>(null);
   const revealOwnerRef = useRef<string | null>(null);
@@ -74,6 +75,7 @@ export default function GamePage() {
     const { data: game } = await supabase.from('games').select('id, current_round_number').eq('lobby_id', lobby.id).single();
     if (!game) return;
     setGameId(game.id);
+    setCurrentRoundNumber(game.current_round_number);
 
     const [lobbyPlayersRes, ownersRes, scoresRes] = await Promise.all([
       supabase
@@ -118,6 +120,32 @@ export default function GamePage() {
     fetchGame();
   }, [fetchGame]);
 
+  const checkForGameUpdates = useCallback(async () => {
+    const { data: lobby } = await supabase.from('lobbies').select('id').eq('code', code).single();
+    if (!lobby) return;
+
+    const { data: game } = await supabase
+      .from('games')
+      .select('id, current_round_number')
+      .eq('lobby_id', lobby.id)
+      .single();
+    if (!game) return;
+
+    if (game.id !== gameId || game.current_round_number !== currentRoundNumber) {
+      await fetchGame();
+      return;
+    }
+
+    if (revealOwnerRef.current) {
+      await refreshScores(game.id);
+    }
+  }, [code, currentRoundNumber, fetchGame, gameId, refreshScores]);
+
+  useEffect(() => {
+    const interval = window.setInterval(checkForGameUpdates, 1500);
+    return () => window.clearInterval(interval);
+  }, [checkForGameUpdates]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`game:${code}`)
@@ -134,6 +162,7 @@ export default function GamePage() {
         setRevealOwner(payload.ownerName ?? null);
         await refreshScores();
       })
+      .on('broadcast', { event: 'round_advanced' }, fetchGame)
       .subscribe();
 
     gameChannelRef.current = channel;
@@ -256,11 +285,16 @@ export default function GamePage() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ gameId }),
                     });
+                    await gameChannelRef.current?.send({
+                      type: 'broadcast',
+                      event: 'round_advanced',
+                      payload: { gameId },
+                    });
                     setRevealOwner(null);
                     setGuessed(false);
                     setImageLoaded(false);
                     setSelectedGuessId(null);
-                    window.location.reload();
+                    await fetchGame();
                   }}
                   className="party-button mt-5 bg-candy-paper"
                 >

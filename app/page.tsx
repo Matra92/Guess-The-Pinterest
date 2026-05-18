@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function HomePage() {
   const router = useRouter();
@@ -25,6 +26,11 @@ export default function HomePage() {
           console.warn('Unable to store playerId', err);
         }
       }
+      await supabase.channel(`lobby:${data.code}`).send({
+        type: 'broadcast',
+        event: 'lobby_changed',
+        payload: { code: data.code },
+      });
       router.push(`/lobby/${data.code}`);
     } catch (err) {
       console.error(err);
@@ -51,6 +57,11 @@ export default function HomePage() {
         }
       }
       if (data.code) {
+        await supabase.channel(`lobby:${data.code}`).send({
+          type: 'broadcast',
+          event: 'lobby_changed',
+          payload: { code: data.code },
+        });
         router.push(`/lobby/${data.code}`);
       }
     } catch (err) {

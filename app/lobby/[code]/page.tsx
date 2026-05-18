@@ -64,10 +64,17 @@ export default function LobbyPage() {
   }, [fetchLobby]);
 
   useEffect(() => {
+    const interval = window.setInterval(fetchLobby, 1500);
+    return () => window.clearInterval(interval);
+  }, [fetchLobby]);
+
+  useEffect(() => {
     const channel = supabase
       .channel(`lobby:${code}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lobbies' }, fetchLobby)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_players' }, fetchLobby)
+      .on('broadcast', { event: 'lobby_changed' }, fetchLobby)
+      .on('broadcast', { event: 'game_started' }, () => router.push(`/game/${code}`))
       .subscribe();
 
     return () => {
@@ -82,6 +89,11 @@ export default function LobbyPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
+      });
+      await supabase.channel(`lobby:${code}`).send({
+        type: 'broadcast',
+        event: 'game_started',
+        payload: { code },
       });
       router.push(`/game/${code}`);
     } catch (err) {
