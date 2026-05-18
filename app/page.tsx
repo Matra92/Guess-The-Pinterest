@@ -22,6 +22,7 @@ export default function HomePage() {
       if (data.playerId) {
         try {
           localStorage.setItem('playerId', String(data.playerId));
+          localStorage.setItem('hostLobbyCode', String(data.code));
         } catch (err) {
           console.warn('Unable to store playerId', err);
         }

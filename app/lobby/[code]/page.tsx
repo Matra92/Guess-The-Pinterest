@@ -33,15 +33,20 @@ export default function LobbyPage() {
       return;
     }
 
-    let storedId: number | null = null;
+    let storedId: string | null = null;
+    let hostLobbyCode: string | null = null;
     try {
       const stored = localStorage.getItem('playerId');
-      storedId = stored ? parseInt(stored, 10) : null;
+      storedId = stored ? String(stored) : null;
+      hostLobbyCode = localStorage.getItem('hostLobbyCode');
     } catch (err) {
       console.warn('Unable to read playerId from localStorage', err);
     }
 
-    setIsHost(storedId !== null && storedId === lobby.host_player_id);
+    setIsHost(
+      (storedId !== null && storedId === String(lobby.host_player_id)) ||
+      hostLobbyCode === code
+    );
 
     const { data: lobbyPlayers } = await supabase
       .from('lobby_players')
@@ -85,11 +90,15 @@ export default function LobbyPage() {
   async function startGame() {
     setLoading(true);
     try {
-      await fetch('/api/games/start', {
+      const res = await fetch('/api/games/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'No se pudo iniciar la partida');
+      }
       await supabase.channel(`lobby:${code}`).send({
         type: 'broadcast',
         event: 'game_started',

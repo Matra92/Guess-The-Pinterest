@@ -44,5 +44,5 @@ export async function POST(request: Request) {
   // Add player to lobby
   await supabase.from('lobby_players').insert({ lobby_id: lobby.id, player_id: player.id, is_ready: false });
   // Return lobby code and the new player's id so the client can persist it locally.  
-  return NextResponse.json({ code, playerId: player.id });
+  return NextResponse.json({ code, playerId: player.id, hostPlayerId: player.id });
 }
