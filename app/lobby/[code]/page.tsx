@@ -19,14 +19,12 @@ export default function LobbyPage() {
   const [roundTime, setRoundTime] = useState(10);
   const [numRounds, setNumRounds] = useState(10);
   const [targetScore, setTargetScore] = useState(10);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const fetchLobby = useCallback(async () => {
-    const { data: lobby } = await supabase
-      .from('lobbies')
-      .select('id, host_player_id, status')
-      .eq('code', code)
-      .single();
-    if (!lobby) return;
+    const res = await fetch(`/api/lobbies/${code}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const { lobby, players: nextPlayers } = await res.json();
 
     if (lobby.status === 'in_game') {
       router.push(`/game/${code}`);
@@ -48,20 +46,7 @@ export default function LobbyPage() {
       hostLobbyCode === code
     );
 
-    const { data: lobbyPlayers } = await supabase
-      .from('lobby_players')
-      .select('player_id, is_ready, players(display_name)')
-      .eq('lobby_id', lobby.id);
-
-    const mapped = lobbyPlayers?.map((lp) => {
-      const player = Array.isArray(lp.players) ? lp.players[0] : lp.players;
-      return {
-        id: lp.player_id,
-        display_name: player?.display_name ?? '',
-        is_ready: lp.is_ready,
-      };
-    }) ?? [];
-    setPlayers(mapped);
+    setPlayers(nextPlayers ?? []);
   }, [code, router]);
 
   useEffect(() => {
@@ -89,6 +74,7 @@ export default function LobbyPage() {
 
   async function startGame() {
     setLoading(true);
+    setErrorMessage('');
     try {
       const res = await fetch('/api/games/start', {
         method: 'POST',
@@ -107,6 +93,7 @@ export default function LobbyPage() {
       router.push(`/game/${code}`);
     } catch (err) {
       console.error(err);
+      setErrorMessage(err instanceof Error ? err.message : 'No se pudo iniciar la partida');
     } finally {
       setLoading(false);
     }
@@ -194,6 +181,11 @@ export default function LobbyPage() {
             {isHost && (
               <section className="party-panel rounded-[32px] bg-white p-5 sm:p-6">
                 <div className="grid gap-3">
+                  {errorMessage && (
+                    <p className="rounded-2xl border-2 border-primary bg-candy-paper p-3 text-sm font-black text-candy-ink">
+                      {errorMessage}
+                    </p>
+                  )}
                   <button
                     onClick={startGame}
                     className="party-button red-button w-full"
